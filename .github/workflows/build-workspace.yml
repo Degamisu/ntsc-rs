@@ -135,6 +135,53 @@ jobs:
         name: ntsc-rs-windows-afterfx
         path: .\ntsc-rs-ae.aex
 
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      run: rustup install stable
+
+    - name: Install gstreamer
+      run: |
+        brew install --cask gstreamer-runtime
+        brew install --cask gstreamer-development
+
+    - name: Set environment variables
+      run: |
+        echo "/Library/Frameworks/GStreamer.framework/Versions/1.0/bin" >> $GITHUB_PATH
+        echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig" >> $GITHUB_ENV
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Build standalone app
+      run: cargo xtask macos-bundle --release
+
+    - name: Build OpenFX plugin
+      run: cargo xtask build-ofx-plugin --macos-universal --release
+
+    - name: Build After Effects plugin (untested)
+      run: cargo xtask macos-ae-plugin --macos-universal --release
+
+    - name: Archive macOS OpenFX plugin
+      uses: actions/upload-artifact@v4
+      if: ${{ github.ref_type == 'tag' }}
+      with:
+        name: ntsc-rs-macos-openfx
+        path: crates/openfx-plugin/build/
+
+    - name: Archive macOS standalone app
+      uses: actions/upload-artifact@v4
+      if: ${{ github.ref_type == 'tag' }}
+      with:
+        name: ntsc-rs-macos-standalone
+        path: build/
+
   release:
     runs-on: ubuntu-latest
     permissions:
@@ -142,6 +189,7 @@ jobs:
     needs:
       - build-windows
       - build-linux
+      - build-macos
     if: ${{ github.ref_type == 'tag' }}
 
     steps:
